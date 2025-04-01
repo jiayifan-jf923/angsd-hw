@@ -1,0 +1,15 @@
+Status	/athena/angsd/scratch/jif4007/project/alignment/SRR27351934.star.Aligned.sortedByCoord.out.bam	/athena/angsd/scratch/jif4007/project/alignment/SRR27351933.star.Aligned.sortedByCoord.out.bam	/athena/angsd/scratch/jif4007/project/alignment/SRR27351932.star.Aligned.sortedByCoord.out.bam	/athena/angsd/scratch/jif4007/project/alignment/SRR27351931.star.Aligned.sortedByCoord.out.bam	/athena/angsd/scratch/jif4007/project/alignment/SRR27351918.star.Aligned.sortedByCoord.out.bam	/athena/angsd/scratch/jif4007/project/alignment/SRR27351917.star.Aligned.sortedByCoord.out.bam
+Assigned	11698100	10916680	6384817	6435956	23864845	19811016
+Unassigned_Unmapped	0	0	0	0	0	0
+Unassigned_Read_Type	0	0	0	0	0	0
+Unassigned_Singleton	0	0	0	0	0	0
+Unassigned_MappingQuality	0	0	0	0	0	0
+Unassigned_Chimera	0	0	0	0	0	0
+Unassigned_FragmentLength	0	0	0	0	0	0
+Unassigned_Duplicate	0	0	0	0	0	0
+Unassigned_MultiMapping	3310502	3110577	1934450	1894392	11206096	8117157
+Unassigned_Secondary	0	0	0	0	0	0
+Unassigned_NonSplit	0	0	0	0	0	0
+Unassigned_NoFeatures	2061999	1967352	1275157	1259194	3358146	3153253
+Unassigned_Overlapping_Length	0	0	0	0	0	0
+Unassigned_Ambiguity	1416312	1304795	712700	722931	4446270	3413263

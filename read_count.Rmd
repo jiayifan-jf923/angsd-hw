@@ -1,0 +1,199 @@
+---
+title: "Finish Aligning and Generate Read Counts"
+author: "Jiayi Fan"
+date: "2025-03-31"
+output: 
+  html_document: 
+    code_folding: show
+    df_print: paged
+    theme: cosmo
+    toc: true
+    toc_depth: 2
+    toc_float: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE)
+```
+
+The goal of this week’s homework is to complete the alignment and read
+count generation of all the samples of your project data. You all had a
+first go at it during the HW of week 6. Now is the time to get back to
+that, change what needs to be changed and write a script that will
+perform the alignment for all your samples. The final step for this week
+should generate a table of read counts which you should read into R.
+
+1.  Set up a github repository where you will store all your scripts,
+    and your final report. Submit the URL of your repo. If you want to
+    set it to private, you will have to grant us access, i.e., Luce
+    (lskrbnek), Merv (mfansler), and Karolina (sienkie).
+2.  Align all your samples. Ideally use a for-loop within a script,
+    i.e., automate and standardize the task to a certain extent, but do
+    remember that legibility is valuable, too.
+3.  Generate a read count table.\*
+4.  Load the read count table into R and perform the quality controls
+    and processing steps that we discussed in class.
+
+The github link for this homework is https://github.com/jiayifan-jf923/angsd-hw.
+
+## Load Data and Normalization
+
+```{r library__data}
+suppressPackageStartupMessages(library(DESeq2))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(pheatmap))
+
+# Set folder and read in featureCounts output
+folder <- "gene_counts/"  # <--- change this to your actual path
+counts_file <- paste0(folder, "fc_output")  # adjust filename if needed
+
+df_counts <- read.table(counts_file, header = TRUE, comment.char = "#", check.names = FALSE)
+head(df_counts)
+```
+
+Here I loaded the read counts as tables, filter out genes with zero total counts, and normalize for sequencing depth.
+
+```{r normalize}
+# Extract SRR id
+colnames(df_counts) <- gsub(".*/(SRR[0-9]+).*", "\\1", colnames(df_counts))
+
+srr_ids <- colnames(df_counts)[-(1:6)]
+if (length(srr_ids) != 6) {
+  stop("Expected 6 samples but found ", length(srr_ids))
+}
+
+rownames(df_counts) <- make.names(df_counts$Geneid, unique = TRUE)
+cts_gene_sample <- df_counts[, srr_ids]
+
+sample_conditions <- c("shWT1", "shWT1", "shWT1_dox", "shWT1_dox", "LP9_ctrl", "LP9_ctrl")
+
+df_coldata <- data.frame(
+  condition = factor(sample_conditions),
+  row.names = srr_ids
+)
+
+# Create DESeqDataSet
+library(DESeq2)
+dds <- DESeqDataSetFromMatrix(
+  countData = cts_gene_sample,
+  colData = df_coldata,
+  design = ~ condition
+)
+
+rowData(dds) <- df_counts[, 1:6]
+
+# Filter out genes with zero total counts
+dds <- dds[rowSums(counts(dds)) > 0, ]
+
+# Normalize for sequencing depth
+dds <- estimateSizeFactors(dds)
+print(sizeFactors(dds))
+```
+
+
+```{r qc}
+# QC plot: raw vs normalized counts
+par(mfrow = c(1, 2))
+plot(density(log2(counts(dds)[,1] + 1)), col = 1, main = "Raw counts (log2)", xlab = "log2(counts + 1)")
+for (i in 2:ncol(dds)) {
+  lines(density(log2(counts(dds)[,i] + 1)), col = i)
+}
+
+plot(density(log2(counts(dds, normalized = TRUE)[,1] + 1)), col = 1, main = "Normalized counts (log2)", xlab = "log2(norm counts + 1)")
+for (i in 2:ncol(dds)) {
+  lines(density(log2(counts(dds, normalized = TRUE)[,i] + 1)), col = i)
+}
+```
+
+```{r}
+raw_totals <- colSums(counts(dds))
+norm_totals <- colSums(counts(dds, normalized = TRUE))
+
+barplot(rbind(raw_totals, norm_totals), beside = TRUE,
+        names.arg = colnames(dds), legend.text = c("Raw", "Normalized"),
+        main = "Library size before vs after normalization", las = 2)
+```
+After normalization, the read count across samples are the same, so the size factor normalization worked as expected.
+
+## Visualization (correlation heatmaps, PCA)
+
+```{r cluster}
+# Log transformation
+rlog_dds <- rlog(dds)
+
+# Compute distance matrix
+corr_matrix <- cor(assay(rlog_dds), method = "pearson")
+pheatmap(1 - corr_matrix, main = "1 - Pearson Correlation")
+
+# Hierarchical clustering
+as.dist(1 - corr_matrix) %>%
+  hclust() %>%
+  plot(labels = colnames(corr_matrix), main = "Sample Clustering (rlog)")
+
+# PCA plot
+plotPCA(rlog_dds, intgroup = "condition") +
+  ggtitle("PCA of Samples")
+```
+
+According to the PCA and clustering, there are clear separation of different conditions, and similarity within same conditions.
+
+## Differential Expression Analysis
+
+```{r deg}
+# Ensure WT is reference level
+dds$condition <- relevel(dds$condition, ref = "LP9_ctrl")
+
+# Run DESeq2 analysis
+dds <- DESeq(dds)
+
+# Get results with adjusted p-values (FDR)
+res <- results(dds, independentFiltering = TRUE, alpha = 0.05)
+
+# Summary of results
+summary(res)
+
+# Histogram of adjusted p-values
+hist(res$padj, breaks = 40, main = "Adjusted p-values")
+
+# Sort by significance
+res_sorted <- res[order(res$padj), ]
+head(res_sorted)
+
+```
+
+```{r visualize_deg}
+# MA plot (log2FC vs mean normalized counts)
+plotMA(res, alpha = 0.05, ylim = c(-4, 4), main = "MA Plot")
+
+# Volcano plot (requires EnhancedVolcano)
+# BiocManager::install("EnhancedVolcano")
+library(EnhancedVolcano)
+EnhancedVolcano(res,
+    lab = rownames(res),
+    x = "log2FoldChange",
+    y = "padj",
+    title = "Volcano Plot: Tumor vs Control")
+
+```
+
+Select genes with adjusted p-value < 0.05 for heatmap. The ploted heatmap shows z-score-scaled expression across samples.
+
+```{r}
+library(pheatmap)
+
+# Subset genes
+sig_genes <- rownames(subset(res, padj < 0.05))
+rlog_mat <- assay(rlog_dds)[sig_genes, ]
+
+pheatmap(rlog_mat, scale = "row", show_rownames = FALSE,
+         main = "DEGs (padj < 0.05, z-score scaled)")
+
+```
+
+
+
+
