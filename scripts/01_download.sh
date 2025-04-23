@@ -24,4 +24,9 @@ for id in "${sra_ids[@]}"; do
   fastq-dump --split-files "$id" # paired-end, so I specified --split-files here
   bgzip -@ 16 "$id"_1.fastq
   bgzip -@ 16 "$id"_2.fastq
+  fastqc "$id"_1.fastq.gz --extract
+  fastqc "$id"_2.fastq.gz --extract
 done
+
+conda activate multiqc
+multiqc . --filename multiqc_trim_galore_report.html --outdir multiqc_report
